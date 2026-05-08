@@ -19,13 +19,24 @@ public class GameManager : MonoBehaviour
     public TMP_Text coinText;
     public TMP_Text diamondText;
 
+    [Header("Start UI")]
+    public GameObject startPanel;
+
     [Header("End UI")]
     public GameObject endPanel;
     public TMP_Text endText;
 
+    [Header("Player")]
+    public Transform player;
+    public Vector3 playerSpawnPosition = new Vector3(0f, 4.72f, 0f);
+
+    [Header("Fall Detection")]
+    public float fallThreshold = -10f;
+
     public bool IsEnded { get; private set; }
 
     float _timeLeft;
+    bool _gameStarted;
 
     void Awake()
     {
@@ -39,6 +50,22 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
+        // Show start screen, freeze game until player clicks Start
+        IsEnded = true;
+        _gameStarted = false;
+
+        if (startPanel) startPanel.SetActive(true);
+        if (endPanel) endPanel.SetActive(false);
+
+        Time.timeScale = 0f;
+    }
+
+    // Called by the "Start Game" button on StartPanel
+    public void OnStartGameClicked()
+    {
+        if (startPanel) startPanel.SetActive(false);
+        Time.timeScale = 1f;
+        _gameStarted = true;
         StartRound();
     }
 
@@ -53,17 +80,47 @@ public class GameManager : MonoBehaviour
 
         if (endPanel) endPanel.SetActive(false);
         RefreshUI();
+
+        // Respawn player to original position
+        RespawnPlayer();
+
+        // Reset all enemies
+        foreach (EnemyController enemy in FindObjectsOfType<EnemyController>())
+            enemy.ResetEnemy();
+    }
+
+    void RespawnPlayer()
+    {
+        if (player == null) return;
+
+        // CharacterController must be disabled before teleporting
+        CharacterController cc = player.GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false;
+
+        player.position = playerSpawnPosition;
+        player.rotation = Quaternion.identity;
+
+        if (cc != null) cc.enabled = true;
     }
 
     void Update()
     {
         if (IsEnded) return;
 
+        // --- Countdown ---
         _timeLeft -= Time.deltaTime;
         if (_timeLeft <= 0f)
         {
             _timeLeft = 0f;
-            EndRound();
+            EndRound("Time Up!");
+            return;
+        }
+
+        // --- Fall-off-map detection ---
+        if (player != null && player.position.y < fallThreshold)
+        {
+            EndRound("FELL OFF THE MAP!");
+            return;
         }
 
         RefreshUI();
@@ -107,7 +164,13 @@ public class GameManager : MonoBehaviour
         return $"{m:00}:{s:00}";
     }
 
-    void EndRound()
+    public void TriggerGameOver()
+    {
+        if (IsEnded) return;
+        EndRound("CAUGHT BY ZOMBIE!");
+    }
+
+    void EndRound(string reason = "Time Up!")
     {
         IsEnded = true;
 
@@ -116,7 +179,7 @@ public class GameManager : MonoBehaviour
         if (endText)
         {
             endText.text =
-                $"Time Up!\n" +
+                $"{reason}\n" +
                 $"Final Score: {score}\n" +
                 $"Coin: {coinCount}\n" +
                 $"Diamond: {diamondCount}\n\n" +
@@ -124,12 +187,10 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    // 可选：键盘R重开（先加上，方便测试）
     void LateUpdate()
     {
-        if (!IsEnded) return;
+        if (!IsEnded || !_gameStarted) return;
 
-        // 你项目用 Input System，所以用 Keyboard.current
         if (UnityEngine.InputSystem.Keyboard.current != null &&
             UnityEngine.InputSystem.Keyboard.current.rKey.wasPressedThisFrame)
         {

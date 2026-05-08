@@ -30,6 +30,9 @@ public class PlayerCharacterController : MonoBehaviour
 
     CharacterController cc;
 
+    // Public so EnemyController can read sprint state
+    public bool IsSprinting { get; private set; }
+
     // Input cache
     Vector2 moveInput;
     bool sprintHeld;
@@ -52,6 +55,7 @@ public class PlayerCharacterController : MonoBehaviour
         // ---- Read Input (every frame) ----
         moveInput = ReadMoveInput();
         sprintHeld = IsSprintHeld();
+        IsSprinting = sprintHeld && moveInput.sqrMagnitude > 0.01f;
 
         if (WasJumpPressedThisFrame())
             jumpBufferTimer = jumpBufferTime;
